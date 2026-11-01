@@ -1,0 +1,590 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>body{margin:0}</style>
+<title>Eye Diagram Lab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: instrument bench. Two stacked scope screens on the left, a control rack on the right, study notes below. */
+:root{
+  --bg:#edf0f3; --panel:#ffffff; --ink:#17212b; --muted:#56636f; --line:#d2d9e0; --accent:#1d5d8a; --accent-ink:#ffffff;
+  --good-ink:#1b7546; --bad-ink:#b1222e;
+  --screen:#0c161f; --grid:rgba(140,180,205,.12); --grid-strong:rgba(140,180,205,.30);
+  --trace:#3cc9c2; --hot:#ffb347; --ok:#4fd18b; --bad:#ff5d6c; --screen-text:#b7c9d5;
+  --f-display:"Barlow Condensed","Arial Narrow",sans-serif;
+  --f-body:"Source Sans 3",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#10161c; --panel:#18212a; --ink:#e2e8ee; --muted:#93a1ad; --line:#2a3743; --accent:#7ab6e2; --accent-ink:#0c1620;
+    --good-ink:#5fd49a; --bad-ink:#ff7d88; --screen:#070e14; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#10161c; --panel:#18212a; --ink:#e2e8ee; --muted:#93a1ad; --line:#2a3743; --accent:#7ab6e2; --accent-ink:#0c1620;
+  --good-ink:#5fd49a; --bad-ink:#ff7d88; --screen:#070e14; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 56px}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
+header{display:flex;flex-direction:column;gap:6px}
+.eyebrow{font-family:var(--f-mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+h1{font-family:var(--f-display);font-weight:700;font-size:clamp(34px,5vw,52px);line-height:1;margin:0;letter-spacing:.01em;text-wrap:balance}
+.lead{margin:4px 0 0;max-width:68ch;color:var(--muted)}
+h2{font-family:var(--f-display);font-weight:600;font-size:26px;margin:0;letter-spacing:.02em;text-wrap:balance}
+h3{font-family:var(--f-display);font-weight:600;font-size:19px;margin:0;letter-spacing:.03em}
+
+.bench{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:20px;align-items:start}
+@media (max-width:880px){.bench{grid-template-columns:minmax(0,1fr)}}
+.scopes{display:flex;flex-direction:column;gap:14px;min-width:0}
+.scope{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.scope-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.scope-head p{margin:0;color:var(--muted);font-size:14px}
+.tag{font-family:var(--f-mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+canvas{display:block;width:100%;border-radius:6px;background:var(--screen)}
+#wave{aspect-ratio:3.2/1;min-height:130px}
+#eye{aspect-ratio:16/10}
+.readouts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+@media (max-width:560px){.readouts{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.ro{border-top:2px solid var(--line);padding-top:6px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.ro span{font-size:12px;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
+.ro b{font-family:var(--f-mono);font-weight:600;font-size:18px;font-variant-numeric:tabular-nums}
+.ro.good{border-color:var(--good-ink)} .ro.good b{color:var(--good-ink)}
+.ro.bad{border-color:var(--bad-ink)} .ro.bad b{color:var(--bad-ink)}
+
+.rack{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:16px}
+.transport{display:flex;gap:8px;flex-wrap:wrap}
+button{font:inherit;font-size:15px;font-weight:600;border-radius:7px;border:1px solid var(--line);background:transparent;color:var(--ink);padding:7px 12px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);min-width:88px}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.ctl{display:flex;flex-direction:column;gap:4px}
+.ctl label,.seg legend{display:flex;justify-content:space-between;gap:8px;font-size:14px;font-weight:600;padding:0}
+.ctl output{font-family:var(--f-mono);font-weight:400;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.ctl small{color:var(--muted);font-size:13px;line-height:1.35}
+input[type=range]{width:100%;accent-color:var(--accent);margin:2px 0}
+input[type=range]:disabled{opacity:.4}
+.seg{border:0;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.seg .opts{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg label{display:block;text-align:center;padding:6px 4px;font-size:14px;cursor:pointer;color:var(--muted)}
+.seg label+input+label,.seg input+label~label{border-left:1px solid var(--line)}
+.seg input:checked+label{background:var(--accent);color:var(--accent-ink);font-weight:600}
+.seg input:focus-visible+label{outline:2px solid var(--accent);outline-offset:-2px}
+.presets{display:flex;flex-wrap:wrap;gap:6px}
+.presets button{font-size:13px;padding:5px 9px;font-weight:600}
+.check{display:flex;gap:8px;align-items:center;font-size:14px}
+.check input{accent-color:var(--accent);width:16px;height:16px}
+hr{border:0;border-top:1px solid var(--line);margin:0}
+
+.notes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+@media (max-width:880px){.notes{grid-template-columns:minmax(0,1fr)}}
+.note{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px 20px;display:flex;flex-direction:column;gap:12px;min-width:0}
+dl{margin:0;display:grid;grid-template-columns:minmax(0,11em) minmax(0,1fr);gap:10px 16px}
+@media (max-width:520px){dl{grid-template-columns:minmax(0,1fr)}}
+dt{font-weight:700}
+dd{margin:0;color:var(--muted)}
+ol{margin:0;padding-left:1.3em;display:flex;flex-direction:column;gap:10px}
+ol li::marker{font-family:var(--f-mono);color:var(--accent)}
+.cause{display:grid;grid-template-columns:minmax(0,9em) minmax(0,1fr);gap:8px 16px}
+.cause b{font-weight:700}
+.cause span{color:var(--muted)}
+.note p{margin:0;max-width:68ch}
+code,.mono{font-family:var(--f-mono);font-size:.9em}
+@media (prefers-reduced-motion: reduce){*{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">Digital communication · baseband receiver</span>
+    <h1>Eye Diagram Lab</h1>
+    <p class="lead">The received signal is cut into slices two symbol periods (2T) long, each centred on a sampling instant. Every slice is drawn on top of the previous ones. The paths taken by all possible bit sequences overlap into a shape that looks like an eye, and how open that eye is tells you how reliably the receiver can decide each bit.</p>
+  </header>
+
+  <div class="bench">
+    <div class="scopes">
+      <section class="scope" aria-label="Received waveform">
+        <div class="scope-head">
+          <h3>1 · Received waveform</h3>
+          <p>Dashed line: transmitted symbols. Dots: sampling instants (green = correct decision, red = error). The amber slice is the one just added to the eye.</p>
+        </div>
+        <canvas id="wave" role="img" aria-label="Scrolling received waveform with sampling instants"></canvas>
+      </section>
+      <section class="scope" aria-label="Eye diagram">
+        <div class="scope-head">
+          <h3>2 · Eye diagram (all slices overlaid)</h3>
+          <span class="tag" id="traceCount">0 slices</span>
+        </div>
+        <canvas id="eye" role="img" aria-label="Eye diagram built from overlaid 2T slices"></canvas>
+        <div class="readouts">
+          <div class="ro" id="roH"><span>Eye height</span><b id="rH">—</b></div>
+          <div class="ro" id="roW"><span>Eye width</span><b id="rW">—</b></div>
+          <div class="ro" id="roE"><span>Errors on screen</span><b id="rE">—</b></div>
+          <div class="ro"><span>Symbols sent</span><b id="rS">0</b></div>
+        </div>
+      </section>
+    </div>
+
+    <aside class="rack" aria-label="Controls">
+      <div class="transport">
+        <button class="primary" id="play" type="button">Pause</button>
+        <button id="step" type="button">Step 1 symbol</button>
+        <button id="clear" type="button">Clear eye</button>
+      </div>
+      <div class="ctl">
+        <label for="speed">Speed <output id="oSpeed"></output></label>
+        <input type="range" id="speed" min="0" max="100" value="38">
+        <small>Slow it down and press Clear eye to watch the eye build up one slice at a time.</small>
+      </div>
+      <hr>
+      <fieldset class="seg">
+        <legend>Modulation</legend>
+        <div class="opts">
+          <input type="radio" name="mod" id="mod2" value="2" checked><label for="mod2">Binary (2-PAM)</label>
+          <input type="radio" name="mod" id="mod4" value="4"><label for="mod4">4-PAM</label>
+        </div>
+      </fieldset>
+      <fieldset class="seg">
+        <legend>Pulse shape</legend>
+        <div class="opts">
+          <input type="radio" name="pulse" id="pRc" value="rc" checked><label for="pRc">Raised cosine</label>
+          <input type="radio" name="pulse" id="pRect" value="rect"><label for="pRect">Rectangular NRZ</label>
+        </div>
+      </fieldset>
+      <div class="ctl">
+        <label for="alpha">Roll-off factor α <output id="oAlpha"></output></label>
+        <input type="range" id="alpha" min="0.1" max="1" step="0.05" value="0.5">
+      </div>
+      <div class="ctl">
+        <label for="bw">Channel bandwidth <output id="oBw"></output></label>
+        <input type="range" id="bw" min="0.15" max="1.6" step="0.05" value="1.6">
+        <small>A narrow channel smears each pulse into its neighbours (ISI).</small>
+      </div>
+      <div class="ctl">
+        <label for="noise">Noise σ <output id="oNoise"></output></label>
+        <input type="range" id="noise" min="0" max="0.5" step="0.01" value="0.04">
+      </div>
+      <div class="ctl">
+        <label for="jitter">Timing jitter (rms) <output id="oJit"></output></label>
+        <input type="range" id="jitter" min="0" max="0.15" step="0.005" value="0">
+      </div>
+      <div class="ctl">
+        <label for="offset">Sampling instant <output id="oOff"></output></label>
+        <input type="range" id="offset" min="-0.5" max="0.5" step="0.03125" value="0">
+        <small>Move the receiver's decision time away from the eye centre.</small>
+      </div>
+      <hr>
+      <div class="ctl">
+        <span style="font-size:14px;font-weight:600">Scenarios</span>
+        <div class="presets">
+          <button type="button" data-p="clean">Clean</button>
+          <button type="button" data-p="noisy">Noisy</button>
+          <button type="button" data-p="isi">Band-limited (ISI)</button>
+          <button type="button" data-p="jitter">Jitter</button>
+          <button type="button" data-p="closed">Closed eye</button>
+        </div>
+      </div>
+      <label class="check"><input type="checkbox" id="labels" checked> Show measurement labels on the eye</label>
+    </aside>
+  </div>
+
+  <div class="notes">
+    <section class="note">
+      <h2>Reading the eye</h2>
+      <dl>
+        <dt>Eye height</dt><dd>Vertical opening at the sampling instant: the gap between the lowest "1" path and the highest "0" path. It is the noise margin. Smaller height means less noise is needed to cause a bit error.</dd>
+        <dt>Eye width</dt><dd>Horizontal opening along the decision threshold. It is the timing margin: how far the sampling clock may drift before errors appear.</dd>
+        <dt>Best sampling instant</dt><dd>The time where the eye is most open vertically. The receiver's clock recovery tries to sample here.</dd>
+        <dt>Crossing spread</dt><dd>Thickness of the X where paths cross the threshold, near ±T/2. It comes from timing jitter and ISI.</dd>
+        <dt>Slope of the sides</dt><dd>How fast the eye closes when sampling early or late. Steep sides mean the system is sensitive to timing error.</dd>
+        <dt>Rail thickness</dt><dd>Spread of the top and bottom paths at the sampling instant. Fuzzy rails mean noise; several distinct rails mean ISI.</dd>
+      </dl>
+    </section>
+    <section class="note">
+      <h2>What closes the eye</h2>
+      <div class="cause">
+        <b>Noise</b><span>Rails become fuzzy and the eye closes vertically. Errors start when noise bridges the gap.</span>
+        <b>ISI (narrow channel)</b><span>Each sample depends on neighbouring bits, so the rails split into separate lines, one per bit pattern. The eye shrinks in both directions.</span>
+        <b>Timing jitter</b><span>The crossings smear sideways and the eye closes horizontally.</span>
+        <b>Small roll-off α</b><span>Uses less bandwidth (B = (1+α)/2T) but the pulse tails ring longer. Height at the ideal instant stays full, but the eye gets narrower, so timing must be more precise.</span>
+        <b>More levels (4-PAM)</b><span>Twice the bits per symbol, but three stacked eyes each one third as tall. The same noise causes far more errors.</span>
+      </div>
+    </section>
+    <section class="note" style="grid-column:1/-1">
+      <h2>Try these</h2>
+      <ol>
+        <li>Set the speed to about 1 symbol/s and press <b>Clear eye</b>. Watch each amber slice in the top screen land in the eye. Find a <span class="mono">0 1 0</span> pattern in the waveform and follow the path it draws.</li>
+        <li>Choose <b>Clean</b>, set α = 1, then slowly reduce α to 0.1. The eye height at the centre stays the same. What happens to the width, and why?</li>
+        <li>Choose <b>Band-limited (ISI)</b>. Count the separate rails at the sampling instant. How many neighbouring bits does each sample depend on?</li>
+        <li>Choose <b>Noisy</b> and raise σ until red dots appear. Now move the sampling instant to ±0.25 T. Why do errors increase faster when you sample away from the centre?</li>
+        <li>Keep σ fixed and switch between 2-PAM and 4-PAM. Compare the error counts and explain the trade-off between data rate and noise margin.</li>
+      </ol>
+    </section>
+  </div>
+</div>
+
+<script>
+(() => {
+const SPS = 32, L = 8, RING = 4096, SRING = 8192, MAXTR = 400, YMAX = 1.75, VIEW = 12, BN = 0.3;
+const NSCALE = Math.sqrt((2 - BN) / BN);
+const BW_OFF = 1.6;
+const P = { mod: 2, pulse: 'rc', alpha: 0.5, bw: 1.6, noise: 0.04, jitter: 0, offset: 0 };
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let playing = !reduce, speed = 4;
+
+// ---------- random ----------
+let spare = null;
+function gauss() {
+  if (spare !== null) { const s = spare; spare = null; return s; }
+  let u = 0, v = 0; while (u === 0) u = Math.random(); v = Math.random();
+  const r = Math.sqrt(-2 * Math.log(u)); spare = r * Math.sin(2 * Math.PI * v);
+  return r * Math.cos(2 * Math.PI * v);
+}
+
+// ---------- signal model ----------
+const symA = new Float32Array(SRING), symL = new Int8Array(SRING), symJ = new Float32Array(SRING);
+const ybuf = new Float32Array(RING);
+let symCount = 0, n = 0, yState = 0, nState = 0, B = 1, Dr = 0, nextTrace = 10, lastK = -1, tNow = 0, sent = 0;
+let traces = [];
+
+function ensureSym(k) {
+  while (symCount <= k) {
+    const M = P.mod, li = Math.floor(Math.random() * M), i = symCount & (SRING - 1);
+    symL[i] = li; symA[i] = -1 + 2 * li / (M - 1); symJ[i] = P.jitter * gauss(); symCount++;
+  }
+}
+function pulse(t) {
+  if (P.pulse === 'rect') return (t >= -0.5 && t < 0.5) ? 1 : 0;
+  const a = P.alpha;
+  if (Math.abs(t) < 1e-9) return 1;
+  const x = Math.PI * t, d = 1 - (2 * a * t) ** 2;
+  if (Math.abs(d) < 1e-6) { const z = Math.PI / (2 * a); return (Math.PI / 4) * Math.sin(z) / z; }
+  return (Math.sin(x) / x) * Math.cos(Math.PI * a * t) / d;
+}
+function computeSample() {
+  const t = n / SPS, k0 = Math.max(0, Math.ceil(t - L)), k1 = Math.floor(t + L);
+  ensureSym(k1);
+  let s = 0;
+  for (let k = k0; k <= k1; k++) { const i = k & (SRING - 1); s += symA[i] * pulse(t - k - symJ[i]); }
+  yState += B * (s - yState);             // channel: one-pole low-pass
+  nState += BN * (gauss() - nState);      // receiver noise, lightly band-limited
+  ybuf[n & (RING - 1)] = yState + P.noise * NSCALE * nState;
+  n++;
+}
+function addTrace(k) {
+  const start = (k - 1) * SPS + Dr, y = new Float32Array(2 * SPS + 1);
+  for (let j = 0; j <= 2 * SPS; j++) y[j] = ybuf[(start + j) & (RING - 1)];
+  traces.push({ y, lvl: symL[k & (SRING - 1)], k, err: false });
+  if (traces.length > MAXTR) traces.shift();
+  lastK = k; sent++;
+}
+// tau = receiver-aligned time in symbol periods (channel delay removed)
+function advanceTo(tau) {
+  const nTarget = Math.floor(tau * SPS) + Dr;
+  while (n <= nTarget) {
+    computeSample();
+    while (n - 1 >= (nextTrace + 1) * SPS + Dr) { addTrace(nextTrace); nextTrace++; }
+  }
+}
+function reset(prefill) {
+  symCount = 0; n = 0; yState = 0; nState = 0; traces = []; lastK = -1; sent = 0; nextTrace = 10;
+  B = P.bw >= BW_OFF ? 1 : 1 - Math.exp(-2 * Math.PI * P.bw / SPS);
+  Dr = Math.round((1 - B) / B);
+  tNow = VIEW + 1; advanceTo(tNow);
+  if (prefill) { tNow += prefill; advanceTo(tNow); }
+}
+
+// ---------- measurements ----------
+const S = { ok: false };
+function levels() { const M = P.mod, a = []; for (let i = 0; i < M; i++) a.push(-1 + 2 * i / (M - 1)); return a; }
+function computeStats() {
+  const M = P.mod, lv = levels(), c = SPS + Math.round(P.offset * SPS);
+  const mn = new Array(M).fill(Infinity), mx = new Array(M).fill(-Infinity);
+  let err = 0;
+  for (const tr of traces) {
+    const v = tr.y[c], li = tr.lvl;
+    if (v < mn[li]) mn[li] = v; if (v > mx[li]) mx[li] = v;
+    const d = Math.min(M - 1, Math.max(0, Math.round((v + 1) * (M - 1) / 2)));
+    tr.err = d !== li; if (tr.err) err++;
+  }
+  S.err = err; S.N = traces.length; S.c = c;
+  let worst = Infinity, wi = -1, have = true;
+  for (let i = 0; i < M - 1; i++) {
+    if (!isFinite(mn[i + 1]) || !isFinite(mx[i])) { have = false; break; }
+    const h = mn[i + 1] - mx[i]; if (h < worst) { worst = h; wi = i; }
+  }
+  S.ok = have && traces.length >= 4;
+  if (!S.ok) return;
+  S.wi = wi; S.top = mn[wi + 1]; S.bot = mx[wi]; S.height = worst / (2 / (M - 1));
+  const th = (lv[wi] + lv[wi + 1]) / 2; S.th = th;
+  let lMin = Infinity, lMax = -Infinity, rMin = Infinity, rMax = -Infinity;
+  for (const tr of traces) {
+    const y = tr.y;
+    for (let j = 0; j < 2 * SPS; j++) {
+      const a = y[j] - th, b = y[j + 1] - th;
+      if ((a < 0) !== (b < 0)) {
+        const u = (j + a / (a - b)) / SPS - 1;
+        if (u < 0) { if (u < lMin) lMin = u; if (u > lMax) lMax = u; }
+        else { if (u < rMin) rMin = u; if (u > rMax) rMax = u; }
+      }
+    }
+  }
+  S.cross = isFinite(lMax) && isFinite(rMin);
+  Object.assign(S, { lMin, lMax, rMin, rMax, width: S.cross ? Math.max(0, rMin - lMax) : NaN });
+}
+
+// ---------- drawing ----------
+const C = {};
+function readTokens() {
+  const cs = getComputedStyle(document.documentElement);
+  for (const k of ['screen', 'grid', 'grid-strong', 'trace', 'hot', 'ok', 'bad', 'screen-text']) C[k] = cs.getPropertyValue('--' + k).trim();
+}
+function fit(cv) {
+  const r = cv.getBoundingClientRect(), d = window.devicePixelRatio || 1;
+  const w = Math.round(r.width * d), h = Math.round(r.height * d);
+  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+  const ctx = cv.getContext('2d'); ctx.setTransform(d, 0, 0, d, 0, 0);
+  return { ctx, w: r.width, h: r.height };
+}
+const waveCv = document.getElementById('wave'), eyeCv = document.getElementById('eye');
+const MONO = '"JetBrains Mono", ui-monospace, Consolas, monospace';
+const GRAY4 = ['00', '01', '11', '10'];
+
+function dashed(ctx, x1, y1, x2, y2, col, dash = [5, 5]) {
+  ctx.save(); ctx.setLineDash(dash); ctx.strokeStyle = col; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); ctx.restore();
+}
+function arrow(ctx, x1, y1, x2, y2, col) {
+  const a = Math.atan2(y2 - y1, x2 - x1), s = 6;
+  ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  for (const [x, y, an] of [[x2, y2, a], [x1, y1, a + Math.PI]]) {
+    ctx.beginPath(); ctx.moveTo(x, y);
+    ctx.lineTo(x - s * Math.cos(an - 0.45), y - s * Math.sin(an - 0.45));
+    ctx.lineTo(x - s * Math.cos(an + 0.45), y - s * Math.sin(an + 0.45)); ctx.closePath(); ctx.fill();
+  }
+}
+function tag(ctx, text, x, y, col, align = 'left', base = 'middle') {
+  ctx.font = `600 11px ${MONO}`; ctx.textAlign = align; ctx.textBaseline = base;
+  const w = ctx.measureText(text).width, px = align === 'left' ? x : align === 'right' ? x - w : x - w / 2;
+  const py = base === 'top' ? y : base === 'bottom' ? y - 14 : y - 7;
+  ctx.fillStyle = C.screen; ctx.globalAlpha = 0.8; ctx.fillRect(px - 3, py, w + 6, 14); ctx.globalAlpha = 1;
+  ctx.fillStyle = col; ctx.fillText(text, x, y + (base === 'top' ? 1 : base === 'bottom' ? -1 : 0));
+}
+
+function drawWave() {
+  const { ctx, w, h } = fit(waveCv);
+  ctx.fillStyle = C.screen; ctx.fillRect(0, 0, w, h);
+  const pl = 40, pr = 10, pt = 24, pb = 10, pw = w - pl - pr, ph = h - pt - pb;
+  const t0 = tNow - VIEW, X = t => pl + (t - t0) / VIEW * pw, Y = v => pt + (YMAX - v) / (2 * YMAX) * ph;
+  // graticule: symbol boundaries + levels
+  ctx.lineWidth = 1;
+  for (let k = Math.ceil(t0 - 0.5); k <= tNow + 1; k++) {
+    const x = X(k + 0.5); if (x < pl || x > pl + pw) continue;
+    ctx.strokeStyle = C.grid; ctx.beginPath(); ctx.moveTo(x, pt); ctx.lineTo(x, pt + ph); ctx.stroke();
+  }
+  for (const v of levels()) { ctx.strokeStyle = C.grid; ctx.beginPath(); ctx.moveTo(pl, Y(v)); ctx.lineTo(pl + pw, Y(v)); ctx.stroke(); }
+  ctx.strokeStyle = C['grid-strong']; ctx.beginPath(); ctx.moveTo(pl, Y(0)); ctx.lineTo(pl + pw, Y(0)); ctx.stroke();
+  ctx.fillStyle = C['screen-text']; ctx.font = `11px ${MONO}`; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  for (const v of [1, 0, -1]) ctx.fillText(v > 0 ? '+1' : String(v), pl - 6, Y(v));
+
+  ctx.save(); ctx.beginPath(); ctx.rect(pl, 0, pw, h); ctx.clip();
+  // latest slice highlight
+  if (lastK >= 0) {
+    ctx.fillStyle = C.hot; ctx.globalAlpha = 0.10;
+    ctx.fillRect(X(lastK - 1), pt, X(lastK + 1) - X(lastK - 1), ph); ctx.globalAlpha = 1;
+  }
+  // transmitted symbols (staircase) + bit labels
+  ctx.setLineDash([4, 4]); ctx.strokeStyle = C['screen-text']; ctx.globalAlpha = 0.55; ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  const kA = Math.max(0, Math.ceil(t0 - 0.5)), kB = Math.min(symCount - 1, Math.floor(tNow + 0.5));
+  for (let k = kA; k <= kB; k++) {
+    const v = symA[k & (SRING - 1)];
+    if (k === kA) ctx.moveTo(X(k - 0.5), Y(v)); else ctx.lineTo(X(k - 0.5), Y(v));
+    ctx.lineTo(X(k + 0.5), Y(v));
+  }
+  ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+  ctx.font = `600 11px ${MONO}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (let k = kA; k <= kB; k++) {
+    const li = symL[k & (SRING - 1)];
+    ctx.fillStyle = k === lastK ? C.hot : C['screen-text'];
+    ctx.fillText(P.mod === 2 ? String(li) : GRAY4[li], X(k), pt / 2 + 1);
+  }
+  // received waveform
+  const mStart = Math.max(0, n - RING + 1, Math.floor(t0 * SPS) + Dr - 1);
+  ctx.strokeStyle = C.trace; ctx.lineWidth = 1.6; ctx.beginPath();
+  for (let m = mStart; m < n; m++) { const x = X((m - Dr) / SPS), y = Y(ybuf[m & (RING - 1)]); m === mStart ? ctx.moveTo(x, y) : ctx.lineTo(x, y); }
+  ctx.stroke();
+  if (lastK >= 0) {
+    const a = (lastK - 1) * SPS + Dr, b = Math.min(n - 1, (lastK + 1) * SPS + Dr);
+    ctx.strokeStyle = C.hot; ctx.lineWidth = 2.4; ctx.beginPath();
+    for (let m = Math.max(a, mStart); m <= b; m++) { const x = X((m - Dr) / SPS), y = Y(ybuf[m & (RING - 1)]); m === Math.max(a, mStart) ? ctx.moveTo(x, y) : ctx.lineTo(x, y); }
+    ctx.stroke();
+  }
+  // sampling instants
+  const M = P.mod;
+  for (let k = Math.max(10, kA); k <= kB; k++) {
+    const m = Math.round((k + P.offset) * SPS) + Dr; if (m >= n || m < mStart) continue;
+    const v = ybuf[m & (RING - 1)], d = Math.min(M - 1, Math.max(0, Math.round((v + 1) * (M - 1) / 2)));
+    ctx.fillStyle = d === symL[k & (SRING - 1)] ? C.ok : C.bad;
+    ctx.beginPath(); ctx.arc(X(k + P.offset), Y(v), 3.6, 0, 2 * Math.PI); ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawEye() {
+  const { ctx, w, h } = fit(eyeCv);
+  ctx.fillStyle = C.screen; ctx.fillRect(0, 0, w, h);
+  const pl = 40, pr = 12, pt = 14, pb = 26, pw = w - pl - pr, ph = h - pt - pb;
+  const X = u => pl + (u + 1) / 2 * pw, Y = v => pt + (YMAX - v) / (2 * YMAX) * ph;
+  ctx.lineWidth = 1;
+  for (let i = -4; i <= 4; i++) { ctx.strokeStyle = i % 2 ? C.grid : C['grid-strong']; ctx.beginPath(); ctx.moveTo(X(i / 4), pt); ctx.lineTo(X(i / 4), pt + ph); ctx.stroke(); }
+  for (const v of [-1.5, -1, -0.5, 0, 0.5, 1, 1.5]) { ctx.strokeStyle = v === 0 ? C['grid-strong'] : C.grid; ctx.beginPath(); ctx.moveTo(pl, Y(v)); ctx.lineTo(pl + pw, Y(v)); ctx.stroke(); }
+  ctx.fillStyle = C['screen-text']; ctx.font = `11px ${MONO}`;
+  ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  for (const v of [1, 0, -1]) ctx.fillText(v > 0 ? '+1' : String(v), pl - 6, Y(v));
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  [['−T', -1], ['−T/2', -0.5], ['0', 0], ['T/2', 0.5], ['T', 1]].forEach(([s, u]) => ctx.fillText(s, Math.min(Math.max(X(u), pl + 12), pl + pw - 10), pt + ph + 8));
+
+  ctx.save(); ctx.beginPath(); ctx.rect(pl, pt, pw, ph); ctx.clip();
+  const N = traces.length;
+  const showLabels = document.getElementById('labels').checked;
+  if (showLabels && S.ok && S.cross) {
+    ctx.fillStyle = C['screen-text']; ctx.globalAlpha = 0.08;
+    ctx.fillRect(X(S.lMin), pt, Math.max(1, X(S.lMax) - X(S.lMin)), ph);
+    ctx.fillRect(X(S.rMin), pt, Math.max(1, X(S.rMax) - X(S.rMin)), ph);
+    ctx.globalAlpha = 1;
+  }
+  const alpha = Math.min(0.85, 2.4 / Math.sqrt(Math.max(1, N)));
+  ctx.globalCompositeOperation = 'lighter'; ctx.lineWidth = 1.2; ctx.globalAlpha = alpha;
+  const newest = N && traces[N - 1].k === lastK ? N - 1 : -1;
+  for (let t = 0; t < N; t++) {
+    if (t === newest) continue;
+    const y = traces[t].y; ctx.strokeStyle = traces[t].err ? C.bad : C.trace;
+    ctx.beginPath();
+    for (let j = 0; j <= 2 * SPS; j++) { const x = X(j / SPS - 1), yy = Y(y[j]); j ? ctx.lineTo(x, yy) : ctx.moveTo(x, yy); }
+    ctx.stroke();
+  }
+  ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+  if (newest >= 0) {
+    const y = traces[newest].y; ctx.strokeStyle = C.hot; ctx.lineWidth = 2.4; ctx.beginPath();
+    for (let j = 0; j <= 2 * SPS; j++) { const x = X(j / SPS - 1), yy = Y(y[j]); j ? ctx.lineTo(x, yy) : ctx.moveTo(x, yy); }
+    ctx.stroke();
+  }
+  const xs = X(P.offset);
+  if (showLabels) {
+    const lv = levels();
+    for (let i = 0; i < lv.length - 1; i++) { const th = (lv[i] + lv[i + 1]) / 2; dashed(ctx, pl, Y(th), pl + pw, Y(th), C['screen-text'], [2, 4]); }
+    dashed(ctx, xs, pt, xs, pt + ph, C.hot, [6, 4]);
+    tag(ctx, 'sampling instant', xs + 6, pt + 4, C.hot, 'left', 'top');
+    tag(ctx, 'threshold', pl + pw - 4, Y(S.ok ? S.th : 0) - 10, C['screen-text'], 'right');
+    if (S.ok) {
+      if (S.height > 0) {
+        arrow(ctx, xs - 10, Y(S.bot), xs - 10, Y(S.top), C.ok);
+        tag(ctx, 'eye height', xs - 16, (Y(S.bot) + Y(S.top)) / 2 - (P.mod === 2 ? 22 : 0), C.ok, 'right');
+      }
+      if (S.cross && S.width > 0.02) {
+        const yT = Y(S.th) + (P.mod === 2 ? 0 : 0);
+        arrow(ctx, X(S.lMax), yT, X(S.rMin), yT, C.ok);
+        tag(ctx, 'eye width', (X(S.lMax) + X(S.rMin)) / 2 + (P.offset > 0 ? -40 : 40), yT + 6, C.ok, 'center', 'top');
+      }
+      if (S.cross) tag(ctx, 'crossing spread', X((S.rMin + S.rMax) / 2), pt + ph - 4, C['screen-text'], 'center', 'bottom');
+    }
+  } else {
+    dashed(ctx, xs, pt, xs, pt + ph, C.hot, [6, 4]);
+  }
+  if (S.ok && S.height <= 0) {
+    ctx.font = `700 22px "Barlow Condensed", "Arial Narrow", sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = C.bad; ctx.fillText('EYE CLOSED', X(0), Y(P.mod === 2 ? 0.35 : 1.45));
+  }
+  if (!N) { ctx.font = `13px ${MONO}`; ctx.fillStyle = C['screen-text']; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('Waiting for the first slice…', X(0), Y(0)); }
+  ctx.restore();
+}
+
+// ---------- readouts ----------
+const $ = id => document.getElementById(id);
+function setRo(el, cls) { el.classList.toggle('good', cls === 'good'); el.classList.toggle('bad', cls === 'bad'); }
+function updateReadouts() {
+  $('traceCount').textContent = `${traces.length} slice${traces.length === 1 ? '' : 's'} overlaid`;
+  $('rS').textContent = sent.toLocaleString();
+  if (!S.ok) { $('rH').textContent = '—'; $('rW').textContent = '—'; $('rE').textContent = traces.length ? `${S.err} / ${S.N}` : '—'; setRo($('roH')); setRo($('roW')); setRo($('roE')); return; }
+  if (S.height <= 0) { $('rH').textContent = 'closed'; setRo($('roH'), 'bad'); }
+  else { $('rH').textContent = `${Math.round(S.height * 100)}%`; setRo($('roH'), S.height > 0.5 ? 'good' : null); }
+  if (S.cross) { $('rW').textContent = `${(S.width).toFixed(2)} T`; setRo($('roW'), S.width <= 0.05 ? 'bad' : S.width > 0.6 ? 'good' : null); }
+  else $('rW').textContent = '—';
+  $('rE').textContent = `${S.err} / ${S.N}`; setRo($('roE'), S.err ? 'bad' : 'good');
+}
+
+// ---------- controls ----------
+function speedFrom(v) { return 0.5 * Math.pow(240, v / 100); }
+function syncOutputs() {
+  $('oSpeed').textContent = `${speed < 10 ? speed.toFixed(1) : Math.round(speed)} symbols/s`;
+  $('oAlpha').textContent = P.alpha.toFixed(2);
+  $('oBw').textContent = P.bw >= BW_OFF ? 'no limit' : `${P.bw.toFixed(2)} × symbol rate`;
+  $('oNoise').textContent = P.noise === 0 ? 'off' : `${P.noise.toFixed(2)}  (SNR ${(20 * Math.log10(1 / P.noise)).toFixed(1)} dB)`;
+  $('oJit').textContent = P.jitter === 0 ? 'off' : `${P.jitter.toFixed(3)} T`;
+  $('oOff').textContent = P.offset === 0 ? 'centre' : `${P.offset > 0 ? '+' : '−'}${Math.abs(P.offset).toFixed(2)} T`;
+  $('alpha').disabled = P.pulse === 'rect';
+}
+function readControls() {
+  P.mod = $('mod4').checked ? 4 : 2;
+  P.pulse = $('pRect').checked ? 'rect' : 'rc';
+  P.alpha = +$('alpha').value; P.bw = +$('bw').value; P.noise = +$('noise').value;
+  P.jitter = +$('jitter').value; P.offset = +$('offset').value; speed = speedFrom(+$('speed').value);
+  syncOutputs();
+}
+const PREFILL = 250;
+['mod2', 'mod4', 'pRc', 'pRect'].forEach(id => $(id).addEventListener('change', () => { readControls(); reset(PREFILL); }));
+['alpha', 'bw', 'noise', 'jitter'].forEach(id => $(id).addEventListener('input', () => { readControls(); reset(PREFILL); }));
+['offset', 'speed'].forEach(id => $(id).addEventListener('input', readControls));
+
+function setPlaying(p) { playing = p; $('play').textContent = p ? 'Pause' : 'Play'; }
+$('play').addEventListener('click', () => setPlaying(!playing));
+$('step').addEventListener('click', () => { setPlaying(false); tNow = Math.floor(tNow) + 1; advanceTo(tNow); });
+$('clear').addEventListener('click', () => { traces = []; lastK = -1; });
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space' && !/INPUT|BUTTON|TEXTAREA/.test(document.activeElement.tagName)) { e.preventDefault(); setPlaying(!playing); }
+});
+
+const PRESETS = {
+  clean:  { mod: 2, pulse: 'rc',   alpha: 0.5, bw: 1.6,  noise: 0.03, jitter: 0,     offset: 0 },
+  noisy:  { mod: 2, pulse: 'rc',   alpha: 0.5, bw: 1.6,  noise: 0.22, jitter: 0,     offset: 0 },
+  isi:    { mod: 2, pulse: 'rect', alpha: 0.5, bw: 0.35, noise: 0.02, jitter: 0,     offset: 0 },
+  jitter: { mod: 2, pulse: 'rc',   alpha: 0.5, bw: 1.6,  noise: 0.03, jitter: 0.06,  offset: 0 },
+  closed: { mod: 2, pulse: 'rect', alpha: 0.5, bw: 0.22, noise: 0.2,  jitter: 0.04,  offset: 0 },
+};
+document.querySelectorAll('[data-p]').forEach(b => b.addEventListener('click', () => {
+  const p = PRESETS[b.dataset.p];
+  $(p.mod === 4 ? 'mod4' : 'mod2').checked = true; $(p.pulse === 'rect' ? 'pRect' : 'pRc').checked = true;
+  $('alpha').value = p.alpha; $('bw').value = p.bw; $('noise').value = p.noise; $('jitter').value = p.jitter; $('offset').value = p.offset;
+  readControls(); reset(PREFILL);
+}));
+
+// ---------- theme + loop ----------
+readTokens();
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readTokens);
+new MutationObserver(readTokens).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+if (document.fonts) document.fonts.ready.then(readTokens);
+
+readControls(); reset(60); setPlaying(playing);
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  if (playing) { tNow += speed * dt; advanceTo(tNow); }
+  computeStats(); drawWave(); drawEye(); updateReadouts();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
